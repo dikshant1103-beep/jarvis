@@ -87,6 +87,27 @@ def pin_vault(path):
     VAULT_PIN.write_text(str(path))
 
 
+# Extra vaults searched by /ask and /find but never written to. This is how
+# Jarvis reads the project brain without being able to scribble on it —
+# captures and saved notes still land in the one active vault.
+REFERENCE_PIN = DATA / "reference_vaults.txt"
+
+
+def reference_vaults():
+    if not REFERENCE_PIN.exists():
+        return []
+    out = []
+    for line in REFERENCE_PIN.read_text().splitlines():
+        p = line.strip()
+        if p and Path(p).is_dir():
+            out.append(Path(p))
+    return out
+
+
+def set_reference_vaults(paths):
+    REFERENCE_PIN.write_text("\n".join(str(p) for p in paths))
+
+
 # ---- auto tool-routing ----
 # On by default: a plain sentence picks its own tool. Off falls back to plain
 # chat for anything that isn't an explicit /command.

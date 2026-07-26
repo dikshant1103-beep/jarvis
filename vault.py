@@ -15,7 +15,8 @@ OBSIDIAN_CONFIG = Path.home() / ".config/obsidian/obsidian.json"
 DAILY_DIR = "00-Daily"            # captures land here
 CONCEPTS_DIR = "01-Concepts"      # saved notes land here
 JARVIS_SUBDIR = "01-Concepts"     # the folder Jarvis writes new notes in
-SKIP_DIRS = {".obsidian", ".trash", ".git", "node_modules", ".venv"}
+SKIP_DIRS = {".obsidian", ".trash", ".git", "node_modules", ".venv",
+             "graphify-out", "_map"}   # generated output, not authored notes
 
 
 def list_vaults():
@@ -93,6 +94,42 @@ def context_for(root, query, budget=6000, limit=4):
         block = f"--- note: {rel} ---\n{body}\n"
         chunks.append(block)
         names.append(str(rel))
+        used += len(block)
+    return "\n".join(chunks), names
+
+
+def search_many(roots, query, limit=6):
+    """Search several vaults at once, best matches first regardless of vault.
+
+    Used so /ask can draw on reference vaults (project history, decisions)
+    without Jarvis being able to write to them — writes always go to the one
+    active vault.
+    """
+    hits = []
+    for root in roots:
+        for score, p, text in search(root, query, limit=limit):
+            hits.append((score, p, text, root))
+    hits.sort(key=lambda h: -h[0])
+    return hits[:limit]
+
+
+def context_for_many(roots, query, budget=6000, limit=4):
+    """context_for across several vaults. Names are prefixed with the vault."""
+    hits = search_many(roots, query, limit=limit)
+    if not hits:
+        return "", []
+    chunks, used, names = [], 0, []
+    for score, p, text, root in hits:
+        rel = f"{root.name}/{p.relative_to(root)}"
+        left = budget - used
+        if left < 400:
+            break
+        body = text.strip()
+        if len(body) > left:
+            body = body[:left].rsplit("\n", 1)[0] + "\n…(truncated)"
+        block = f"--- note: {rel} ---\n{body}\n"
+        chunks.append(block)
+        names.append(rel)
         used += len(block)
     return "\n".join(chunks), names
 
