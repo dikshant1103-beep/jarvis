@@ -141,11 +141,16 @@ def handle_vault(s, arg):
 
 
 def handle_ask(s, question):
-    """Answer grounded in the vault, and say which notes were used."""
+    """Answer grounded in the vault, and say which notes were used.
+
+    Searches the active vault plus any read-only reference vaults, so the
+    project brain is answerable without being writable.
+    """
     if not s.vault:
         print(c("  no vault configured — /vault", "red"))
         return
-    ctx, names = vault.context_for(s.vault, question)
+    roots = [s.vault] + [r for r in config.reference_vaults() if r != s.vault]
+    ctx, names = vault.context_for_many(roots, question)
     if not ctx:
         print(c("  nothing relevant in the vault — answering from the model alone", "dim"))
         s.last_reply = stream_reply(s.brain, question)
@@ -741,11 +746,13 @@ def main():
             if not q or not s.vault:
                 print(c("  usage: /find <query>", "dim"))
                 continue
-            hits = vault.search(s.vault, q)
+            roots = [s.vault] + [r for r in config.reference_vaults() if r != s.vault]
+            hits = vault.search_many(roots, q)
             if not hits:
                 print(c("  no matches", "dim"))
-            for score, p, _ in hits:
-                print(f"  {c(str(score).rjust(4), 'dim')}  {p.relative_to(s.vault)}")
+            for score, p, _, root in hits:
+                where = f"{root.name}/{p.relative_to(root)}"
+                print(f"  {c(str(score).rjust(4), 'dim')}  {where}")
             print()
         elif line.startswith("/note"):
             name = line[5:].strip()
